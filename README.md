@@ -1,17 +1,19 @@
 # SlipStreamCLI
 SlipStream Command Line Interface
 
-This is a command line interface to a SlipStream service.
+This is a command line interface to a SlipStream service like [Nuvla](https://nuv.la).
 
 ## Installation
-  $ pip install slipstream-cli
+  `$ pip install slipstream-cli`
 
 ## Usage
-  $ slipstream --help
+  `$ slipstream --help`
 
 ## Contribute
-  $ git clone https://github.com/slipstream/SlipStreamCLI.git
-  $ cd SlipStreamCLI/
-  $ pip install --editable .
-
+  `$ sh`
+  ```sh
+  git clone https://github.com/slipstream/SlipStreamCLI.git
+  cd SlipStreamCLI/
+  pip install --editable .
+  ```
 
