@@ -271,6 +271,20 @@ def list_project_content(api, type, recurse, path):
 
 
 @cli.command()
+@click.argument('deployment_id', type=click.UUID, required=True)
+@click.pass_obj
+def deployment(api, deployment_id):
+    """
+    Show a deployment
+    """
+    deployment = api.get_deployment(deployment_id)
+    if deployment:
+        printtable([deployment])
+    else:
+        logger.warning("Deployment not found.")
+
+
+@cli.command()
 @click.option('-i', '--inactive', 'inactive', is_flag=True, default=False,
               help="Include inactive runs.")
 @click.pass_obj
@@ -298,7 +312,7 @@ def virtualmachines(api, deployment_id, cloud, status):
     List virtual machines filtered according to given options.
     """
     def filter_func(vm):
-        if run_id and vm.run_id != run_id:
+        if deployment_id and vm.deployment_id != deployment_id:
             return False
         if cloud and vm.cloud != cloud:
             return False
