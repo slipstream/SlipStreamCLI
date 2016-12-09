@@ -12,9 +12,9 @@ with open('src/slipstream/cli/__init__.py', 'rb') as f:
         f.read().decode('utf-8')).group(1)))
 
 install_requires = [
-    'click',
+    'click=>6.6',
     'prettytable',
-    'six',
+    'six=>1.10.0',
     'slipstream-api'
 ]
 
@@ -42,6 +42,8 @@ setup(
         ]
     },
     classifiers=[
+        'Development Status :: 3 - Alpha',
+        'License :: OSI Approved :: Apache Software License',
         'Intended Audience :: Developers',
         'Intended Audience :: System Administrators',
         'Operating System :: OS Independent',

@@ -25,15 +25,15 @@ except ImportError:
 
 def _excepthook(exctype, value, tb):
     if exctype == HTTPError:
-        if value.response.status_code == 401:
+        if 'xml' in value.response.headers['content-type']:
+            root = etree.fromstring(value.response.text)
+            logger.fatal(root.text)
+        elif value.response.status_code == 401:
             logger.fatal("Authentication cookie expired. "
                         "Log in with `slipstream login`.")
         elif value.response.status_code == 403:
             logger.fatal("Invalid credentials provided. "
                         "Log in with `slipstream login`.")
-        elif 'xml' in value.response.headers['content-type']:
-            root = etree.fromstring(value.response.text)
-            logger.fatal(root.text)
         else:
             logger.fatal(str(value))
     else:
@@ -81,7 +81,7 @@ def config_set(ctx, param, value):
 
 click.disable_unicode_literals_warning = True
 
-@click.command(cls=AliasedGroup)
+@click.command(cls=AliasedGroup, context_settings=dict(help_option_names=['-h', '--help']))
 @click.option('-P', '--profile', metavar='PROFILE',
               callback=use_profile, expose_value=False, is_eager=True,
               help="The config file section to use instead of '%s'."
@@ -109,7 +109,6 @@ click.disable_unicode_literals_warning = True
 @click.option('-v', '--verbose', 'verbose', count=True,
               help="Give more output. Can be used up to 4 times.")
 @click.version_option(__version__, '-V', '--version')
-@click.help_option('-h', '--help')
 @click.pass_context
 def cli(ctx, password, batch_mode, quiet, verbose):
     """
@@ -346,15 +345,17 @@ def build(ctx, cloud, should_open, path):
 
 @cli.command()
 @click.option('--cloud', '-c', type=types.NodeKeyValue(), multiple=True, metavar='<node>:<cloud> or <cloud>',
-              help='Specify cloud service to be used.')
+              help='Specify cloud service to be used. If not specified, it will try to find the cheapest Cloud; fallback to your default Cloud.')
 @click.option('--param', '-p', type=types.NodeKeyValue(), multiple=True,
               metavar='<node>:<param_name>=<value> or <param_name>=<value>',
               help='Set application or component parameters.')
 @click.option('--open', 'should_open', is_flag=True, default=False,
               help="Open the created run in a web browser")
+@click.option('--dry-run', '-d', 'dry_run', is_flag=True, default=False,
+              help="Doesn't launch the deployment")
 @click.argument('path', metavar='PATH', nargs=1, required=True)
 @click.pass_context
-def deploy(ctx, cloud, param, should_open, path):
+def deploy(ctx, cloud, param, should_open, dry_run, path):
     """
     Deploy a component or an application
     """
@@ -362,22 +363,52 @@ def deploy(ctx, cloud, param, should_open, path):
     type = 'Unknown'
 
     try:
-        type = api.get_element(path).type
+        type_ = api.get_element(path).type
     except HTTPError as e:
         if e.response.status_code == 404:
             app = {app.name: app for app in api.list_applications()}.get(path)
             if app is None:
                 raise
             path = app.path
-            type = app.type
+            type_ = app.type
 
-    if type not in ['application', 'component']:
-        raise click.ClickException("Cannot run a '{}'.".format(type))
+    #if type_ not in ['application', 'component']:
+    #    raise click.ClickException("Cannot deploy a '{}'.".format(type))
 
     params = dict()
-    params.update(dict(cloud))
+    cloud_params = dict(cloud)
+    params.update(cloud_params)
     params.update(dict(param))
-    deployment_id = api.deploy(path, raw_params=params)
+   
+    from pprint import pprint as pp
+
+    clouds = {}
+    try:
+        logger.info('Searching the cheapest service offer')
+        offers = api.find_service_offers(path)
+        if type_ == 'component' and not clouds:
+            clouds = x.values()[0][0]['name']
+        elif type_ == 'application':
+            clouds = {nodename: node_offers[0]['name'] for nodename, node_offers in six.iteritems(offers) 
+                      if nodename not in cloud_params}
+    except:
+        raise #pass
+    
+    if not clouds:
+        logger.warning('Failed to find the cheapest Cloud. Will use your default Cloud.')
+    clouds.update(cloud_params)
+
+    if dry_run:
+        message = "Not sending the request to deploy: {}\n".format(path) + \
+                  "- with the following parameters: {}\n".format(repr(param)) + \
+                  "- on the following cloud(s): {}\n".format(clouds) + \
+                  "\n" \
+                  "\n" \
+                  ""
+        click.echo(message)
+        return
+
+    deployment_id = api.deploy(path, cloud=clouds, raw_params=params)
     click.echo(deployment_id)
     if should_open:
         ctx.invoke(open_cmd, run_id=deployment_id)

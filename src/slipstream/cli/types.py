@@ -39,21 +39,20 @@ class NodeKeyValue(click.ParamType):
                 n = temp[0]
                 k, v = NodeKeyValue.get_key_val(temp[1])
 
-            if param.name == 'cloud':
-                if k != '':
-                    raise ValueError
-                k = 'cloudservice'
+            if param.name != 'cloud' and k == '':
+                raise ValueError
 
-            if n == 'default':
-                if param.name == 'param':
-                    if k == '':
-                        raise ValueError
-                    return 'parameter--{0}'.format(k), v
-                elif param.name == 'cloud':
-                    return 'parameter--cloudservice', v
-            else:
-                if k == '':
-                    raise ValueError
-                return 'parameter--node--{0}--{1}'.format(n, k), v
+            if n == 'default': # Set a Component parameter/Cloud
+                if param.name == 'param': # Set a Component parameter
+                    return k, v
+                elif param.name == 'cloud': # Set the Component Cloud
+                    return None, v
+            else: # Set a Node parameter/Cloud
+                if param.name == 'param': # Set a Node parameter
+                    return ((n, k), v)
+                elif param.name == 'cloud': # Set the Node Cloud
+                    return n, v
+
         except ValueError:
+            raise
             self.fail("%s is not a valid!\nAuthorized format: %s" % (value, param.metavar), param, ctx)
