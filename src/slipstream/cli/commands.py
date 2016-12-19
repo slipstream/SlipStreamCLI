@@ -10,6 +10,7 @@ import six
 from requests.exceptions import HTTPError
 
 import click
+from pprint import pformat
 from prettytable import PrettyTable
 
 from . import __version__, types, conf
@@ -44,6 +45,33 @@ def _excepthook(exctype, value, tb):
     logger.debug(out.getvalue())
 
 sys.excepthook = _excepthook
+
+
+def to_recursive_dict_or_string(d):
+    if len(d) == 1 and d.keys()[0] is None:
+        return d.values()[0]
+
+    r = {}
+    for k,v in six.iteritems(d):
+        if isinstance(k, tuple) and len(k) == 2:
+            a, b = k
+            r.setdefault(a, {})[b] = v
+        else:
+            r[k] = v
+    return r
+
+
+def pp(element, level=0):
+    m = ''
+    if isinstance(element, dict):
+        for k, v in element.iteritems():
+            m += '\n{}- {} => {}'.format(' '*2*level, k, pp(v, level+1))
+    elif hasattr(element, '__iter__'):
+        for el in element:
+            m += '\n{}- {}'.format(' '*2*level, pp(el, level+1))
+    else:
+        m = '{}'.format(element)
+    return m
 
 
 def printtable(items):
@@ -375,40 +403,44 @@ def deploy(ctx, cloud, param, should_open, dry_run, path):
     #if type_ not in ['application', 'component']:
     #    raise click.ClickException("Cannot deploy a '{}'.".format(type))
 
-    params = dict()
-    cloud_params = dict(cloud)
-    params.update(cloud_params)
-    params.update(dict(param))
-   
-    from pprint import pprint as pp
+    params = to_recursive_dict_or_string(dict(param))
+    cloud_params = to_recursive_dict_or_string(dict(cloud))
 
+    prices = {}
     clouds = {}
     try:
         logger.info('Searching the cheapest service offer')
         offers = api.find_service_offers(path)
-        if type_ == 'component' and not clouds:
-            clouds = x.values()[0][0]['name']
+        if type_ == 'component' and not cloud_params:
+            best_offer = offers.values()[0][0]
+            clouds = best_offer['name']
+            prices = best_offer['price']
         elif type_ == 'application':
-            clouds = {nodename: node_offers[0]['name'] for nodename, node_offers in six.iteritems(offers) 
+            best_offers = {nodename: node_offers[0] for nodename, node_offers in six.iteritems(offers)}
+            clouds = {nodename: offer['name'] for nodename, offer in six.iteritems(best_offers)
                       if nodename not in cloud_params}
+            prices = {nodename: offer['price'] for nodename, offer in six.iteritems(best_offers)}
     except:
         raise #pass
     
     if not clouds:
         logger.warning('Failed to find the cheapest Cloud. Will use your default Cloud.')
-    clouds.update(cloud_params)
+
+    if type_ == 'component' and not clouds:
+        clouds = cloud_params
+    elif type_ == 'application':
+        clouds.update(cloud_params)
 
     if dry_run:
         message = "Not sending the request to deploy: {}\n".format(path) + \
-                  "- with the following parameters: {}\n".format(repr(param)) + \
-                  "- on the following cloud(s): {}\n".format(clouds) + \
-                  "\n" \
-                  "\n" \
+                  "- with the following parameters: {}\n".format(pp(params, 1)) + \
+                  "- on the following cloud(s): {}\n".format(pp(clouds, 1)) + \
+                  "- with the following price(s): {}\n".format(pp(prices, 1)) + \
                   ""
         click.echo(message)
         return
 
-    deployment_id = api.deploy(path, cloud=clouds, raw_params=params)
+    deployment_id = api.deploy(path, cloud=clouds, parameters=params)
     click.echo(deployment_id)
     if should_open:
         ctx.invoke(open_cmd, run_id=deployment_id)

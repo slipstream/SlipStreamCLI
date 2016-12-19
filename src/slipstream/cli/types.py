@@ -1,3 +1,4 @@
+import re
 import click
 
 from six.moves.urllib.parse import urlparse
@@ -18,41 +19,28 @@ class URL(click.ParamType):
 class NodeKeyValue(click.ParamType):
     name = 'nodekeyvalue'
 
-    @staticmethod
-    def get_key_val(key_val):
-        temp = key_val.split('=', 1)
-        if len(temp) == 1:
-            k = ''
-            v = temp[0]
-        else:
-            k = temp[0]
-            v = temp[1]
-        return k, v
-
     def convert(self, value, param, ctx):
         try:
-            temp = value.split(':', 1)
-            n = 'default'
-            if len(temp) == 1:  # value or key=value
-                k, v = NodeKeyValue.get_key_val(temp[0])
-            else:  # node:value or node:key=value
-                n = temp[0]
-                k, v = NodeKeyValue.get_key_val(temp[1])
-
-            if param.name != 'cloud' and k == '':
+            pattern = '^(?:([^:=]+):)?(?:([^:=]+)=)?([^:=]+)$'
+            node, key, val = re.search(pattern, value).groups()
+            
+            if param.name != 'cloud' and key == '':
                 raise ValueError
 
-            if n == 'default': # Set a Component parameter/Cloud
+            if node is None: # Set a Component parameter/Cloud
                 if param.name == 'param': # Set a Component parameter
-                    return k, v
+                    return key, val
                 elif param.name == 'cloud': # Set the Component Cloud
-                    return None, v
+                    return None, val
             else: # Set a Node parameter/Cloud
                 if param.name == 'param': # Set a Node parameter
-                    return ((n, k), v)
+                    return ((node, key), val)
                 elif param.name == 'cloud': # Set the Node Cloud
-                    return n, v
+                    return node, val
 
         except ValueError:
             raise
             self.fail("%s is not a valid!\nAuthorized format: %s" % (value, param.metavar), param, ctx)
+
+
+
