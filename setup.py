@@ -12,10 +12,10 @@ with open('src/slipstream/cli/__init__.py', 'rb') as f:
         f.read().decode('utf-8')).group(1)))
 
 install_requires = [
-    'click',
+    'click>=6.6',
     'prettytable',
-    'six',
-    'slipstream-api'
+    'six>=1.10.0',
+    'slipstream-api>=3.37'
 ]
 
 if sys.version_info < (3, 2):

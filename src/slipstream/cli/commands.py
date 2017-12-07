@@ -185,7 +185,7 @@ def login(cfg, password):
 
     if (username and password) or cfg.batch_mode:
         try:
-            api.login(username, password)
+            api.login_internal(username, password)
         except HTTPError as e:
             if e.response.status_code != 401:
                 raise
@@ -203,7 +203,7 @@ def login(cfg, password):
                                 hide_input=True)
 
         try:
-            api.login(username, password)
+            api.login_internal(username, password)
         except HTTPError as e:
             if e.response.status_code != 401:
                 raise
